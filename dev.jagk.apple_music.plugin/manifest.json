@@ -1,0 +1,134 @@
+{
+    "name": "AppleMusic",
+    "uuid": "dev.jagk.apple_music",
+    "version": "1.0.0",
+    "author": "Jag_k",
+    "entry": "backend/plugin.cjs",
+    "description": "Control Apple Music via FlexBar!",
+    "repo": "https://github.com/jag-k/flexbar-plugin-apple-music",
+    "sdk": {
+        "version": "1.0.0"
+    },
+    "software": {
+        "minimumVersion": "1.0.0"
+    },
+    "os": [
+        {
+            "platform": "mac",
+            "minimumVersion": "10.15"
+        }
+    ],
+    "device": [
+        {
+            "name": "flexbar",
+            "version": "1.0.0"
+        }
+    ],
+    "keyLibrary": {
+        "title": "$PluginName",
+        "style": {
+            "icon": "mdi mdi-puzzle"
+        },
+        "children": [
+            {
+                "title": "$TrackInfo.Title",
+                "tip": "$TrackInfo.Tip",
+                "cid": "dev.jagk.apple_music.trackinfo",
+                "config": {
+                    "keyType": "default",
+                    "clickable": true,
+                    "platform": [
+                        "mac"
+                    ]
+                },
+                "style": {
+                    "icon": "mdi mdi-music",
+                    "width": 240
+                },
+                "data": {
+                    "textAlignment": "center"
+                }
+            },
+            {
+                "title": "$PlayPause.Title",
+                "tip": "$PlayPause.Tip",
+                "cid": "dev.jagk.apple_music.playpause",
+                "config": {
+                    "keyType": "default",
+                    "clickable": true,
+                    "platform": [
+                        "mac"
+                    ]
+                },
+                "style": {
+                    "icon": "mdi mdi-play-pause",
+                    "width": 120
+                },
+                "data": {}
+            },
+            {
+                "title": "$Next.Title",
+                "tip": "$Next.Tip",
+                "cid": "dev.jagk.apple_music.next",
+                "config": {
+                    "keyType": "default",
+                    "clickable": true,
+                    "platform": [
+                        "mac"
+                    ]
+                },
+                "style": {
+                    "icon": "mdi mdi-skip-next",
+                    "width": 120
+                },
+                "data": {}
+            },
+            {
+                "title": "$Previous.Title",
+                "tip": "$Previous.Tip",
+                "cid": "dev.jagk.apple_music.previous",
+                "config": {
+                    "keyType": "default",
+                    "clickable": true,
+                    "platform": [
+                        "mac"
+                    ]
+                },
+                "style": {
+                    "icon": "mdi mdi-skip-previous",
+                    "width": 120
+                },
+                "data": {}
+            }
+        ]
+    },
+    "local": {
+        "en": {
+            "PluginName": "AppleMusic",
+            "TrackInfo": {
+                "Title": "Track Info",
+                "Tip": "Displays current track from Apple Music",
+                "UI": {
+                    "ShowArtwork": "Show Artwork",
+                    "ArtworkPosition": "Artwork Position",
+                    "TextAlignment": "Text Alignment",
+                    "Left": "Left",
+                    "Center": "Center",
+                    "Right": "Right"
+                }
+            },
+            "PlayPause": {
+                "Title": "Play/Pause",
+                "Tip": "Toggle play/pause for Apple Music"
+            },
+            "Next": {
+                "Title": "Next Track",
+                "Tip": "Switch to next track in Apple Music"
+            },
+            "Previous": {
+                "Title": "Previous Track",
+                "Tip": "Switch to previous track in Apple Music"
+            }
+        }
+    }
+}
