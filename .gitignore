@@ -4,3 +4,4 @@ logs
 .env
 package-lock.json
 dev.jagk.apple_music.plugin/backend
+*.flexplugin

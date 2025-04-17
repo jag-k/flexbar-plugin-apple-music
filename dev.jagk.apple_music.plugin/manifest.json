@@ -27,7 +27,7 @@
     "keyLibrary": {
         "title": "$PluginName",
         "style": {
-            "icon": "mdi mdi-puzzle"
+            "icon": "mdi mdi-apple"
         },
         "children": [
             {

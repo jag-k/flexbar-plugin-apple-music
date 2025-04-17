@@ -1,16 +1,41 @@
 import fs from "fs/promises";
 import util from "util";
-import { exec } from "child_process";
-import { ARTWORK_PATH } from "./consts";
-import { logger } from "@eniac/flexdesigner";
-import { getCachedTrackInfo, updateTrackCache, isCacheValid, clearTrackCache, updatePositionInCache } from "./cache";
+import {exec} from "child_process";
+import {ARTWORK_PATH} from "./consts";
+import {logger} from "@eniac/flexdesigner";
+import {getCachedTrackInfo, updateTrackCache, isCacheValid, clearTrackCache, updatePositionInCache} from "./cache";
 
 const execPromise = util.promisify(exec);
+
+async function isAppleMusicRunning() {
+    const checkRunningScript = `
+    tell application "System Events"
+        set isRunning to (exists (processes where name is "Music"))
+        return isRunning
+    end tell
+    `;
+
+    try {
+        const {stdout: isRunningOutput} = await execPromise(`osascript -e '${checkRunningScript}'`);
+        const isRunning = isRunningOutput.trim() === "true";
+        logger.info("Apple Music is running:", isRunning);
+        return isRunning;
+    } catch (e) {
+        logger.error(e)
+        return false;
+    }
+
+}
 
 /**
  * Получение ID текущего трека и информации о воспроизведении из Apple Music
  */
 async function getCurrentTrackId() {
+    const defaultResponse = {trackId: null, position: 0, duration: 0, isPlaying: false}
+    const isRunning = await isAppleMusicRunning();
+    if (!isRunning) {
+        return defaultResponse;
+    }
     try {
         const script = `
         tell application "Music"
@@ -27,7 +52,7 @@ async function getCurrentTrackId() {
         end tell
         `;
 
-        const { stdout } = await execPromise(`osascript -e '${script}'`);
+        const {stdout} = await execPromise(`osascript -e '${script}'`);
         const [trackId, position, duration, isPlaying] = stdout.trim().split("\n");
         return {
             trackId,
@@ -37,7 +62,7 @@ async function getCurrentTrackId() {
         };
     } catch (error) {
         logger.error("Ошибка при получении ID трека:", error);
-        return { trackId: null, position: 0, duration: 0, isPlaying: false };
+        return defaultResponse;
     }
 }
 
@@ -46,6 +71,11 @@ async function getCurrentTrackId() {
  * Легкий запрос, который не загружает обложку и другие данные
  */
 export async function getPlaybackPosition() {
+    const defaultResponse = {position: 0, duration: 0, isPlaying: false}
+    const isRunning = await isAppleMusicRunning();
+    if (!isRunning) {
+        return defaultResponse;
+    }
     try {
         const script = `
         tell application "Music"
@@ -61,7 +91,7 @@ export async function getPlaybackPosition() {
         end tell
         `;
 
-        const { stdout } = await execPromise(`osascript -e '${script}'`);
+        const {stdout} = await execPromise(`osascript -e '${script}'`);
         const [position, duration, isPlaying] = stdout.trim().split("\n");
 
         // Обновляем позицию в кеше
@@ -74,7 +104,7 @@ export async function getPlaybackPosition() {
         };
     } catch (error) {
         logger.error("Ошибка при получении позиции воспроизведения:", error);
-        return { position: 0, duration: 0, isPlaying: false };
+        return defaultResponse;
     }
 }
 
@@ -84,7 +114,7 @@ export async function getPlaybackPosition() {
 export async function getTrackInfoWithAppleScript() {
     try {
         // Сначала получаем только ID трека и позицию воспроизведения
-        const { trackId, position, duration, isPlaying } = await getCurrentTrackId();
+        const {trackId, position, duration, isPlaying} = await getCurrentTrackId();
 
         // Если трек не играет, возвращаем стандартную информацию
         if (trackId === "no_track" || !isPlaying) {
@@ -138,7 +168,7 @@ export async function getTrackInfoWithAppleScript() {
         end tell
         `;
 
-        const { stdout } = await execPromise(`osascript -e '${script}'`);
+        const {stdout} = await execPromise(`osascript -e '${script}'`);
         const [title, artist, album, status] = stdout.trim().split("\n");
 
         let artworkBase64 = "";
