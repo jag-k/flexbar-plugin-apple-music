@@ -1,6 +1,6 @@
 {
   "name": "Apple Music",
-  "uuid": "dev.jagk.apple_music",
+  "uuid": "com.jagk.apple_music",
   "version": "1.0.0",
   "author": "Jag_k",
   "entry": "backend/plugin.cjs",
@@ -34,7 +34,7 @@
       {
         "title": "$TrackInfo.Title",
         "tip": "$TrackInfo.Tip",
-        "cid": "dev.jagk.apple_music.trackinfo",
+        "cid": "com.jagk.apple_music.trackinfo",
         "config": {
           "keyType": "default",
           "clickable": true,
@@ -53,7 +53,7 @@
       {
         "title": "$PlayPause.Title",
         "tip": "$PlayPause.Tip",
-        "cid": "dev.jagk.apple_music.playpause",
+        "cid": "com.jagk.apple_music.playpause",
         "config": {
           "keyType": "multiState",
           "clickable": true,
@@ -79,7 +79,7 @@
       {
         "title": "$Next.Title",
         "tip": "$Next.Tip",
-        "cid": "dev.jagk.apple_music.next",
+        "cid": "com.jagk.apple_music.next",
         "config": {
           "keyType": "default",
           "clickable": true,
@@ -96,7 +96,7 @@
       {
         "title": "$Previous.Title",
         "tip": "$Previous.Tip",
-        "cid": "dev.jagk.apple_music.previous",
+        "cid": "com.jagk.apple_music.previous",
         "config": {
           "keyType": "default",
           "clickable": true,

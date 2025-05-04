@@ -33,6 +33,6 @@ npm run dev
 
 ```
 npm run build
-npm run plugin:pack --path dev.jagk.apple_music.plugin
+npm run plugin:pack --path com.jagk.apple_music.plugin
 ```
   

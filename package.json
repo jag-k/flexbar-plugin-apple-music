@@ -3,13 +3,13 @@
     "build": "rollup -c",
     "dev": "npm-run-all plugin:unlink plugin:link -p plugin:watch plugin:debug",
     "plugin:watch": "rollup -c -w --watch.onEnd=\"npm run plugin:restart\"",
-    "plugin:unlink": "flexcli plugin unlink --uuid dev.jagk.apple_music --silent",
-    "plugin:link": "flexcli plugin link --path dev.jagk.apple_music.plugin --uuid dev.jagk.apple_music --start false",
-    "plugin:restart": "flexcli plugin restart --uuid=dev.jagk.apple_music",
-    "plugin:debug": "flexcli plugin debug --uuid=dev.jagk.apple_music",
-    "plugin:validate": "flexcli plugin validate --path dev.jagk.apple_music.plugin",
-    "plugin:pack": "flexcli plugin pack --path dev.jagk.apple_music.plugin",
-    "plugin:install": "flexcli plugin install --path ./dev.jagk.apple_music.flexplugin --force"
+    "plugin:unlink": "flexcli plugin unlink --uuid com.jagk.apple_music --silent",
+    "plugin:link": "flexcli plugin link --path com.jagk.apple_music.plugin --uuid com.jagk.apple_music --start false",
+    "plugin:restart": "flexcli plugin restart --uuid=com.jagk.apple_music",
+    "plugin:debug": "flexcli plugin debug --uuid=com.jagk.apple_music",
+    "plugin:validate": "flexcli plugin validate --path com.jagk.apple_music.plugin",
+    "plugin:pack": "flexcli plugin pack --path com.jagk.apple_music.plugin",
+    "plugin:install": "flexcli plugin install --path ./com.jagk.apple_music.flexplugin --force"
   },
   "type": "commonjs",
   "devDependencies": {

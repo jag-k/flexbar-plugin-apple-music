@@ -3,5 +3,5 @@ logs
 .vscode
 .idea
 .env
-dev.jagk.apple_music.plugin/backend
+com.jagk.apple_music.plugin/backend
 *.flexplugin
