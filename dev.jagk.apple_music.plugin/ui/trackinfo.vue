@@ -3,10 +3,16 @@
     <v-row>
       <v-col cols="12">
         <v-card>
-          <v-card-title>Apple Music Plugin</v-card-title>
+          <v-card-title>{{ $t("TrackInfo.Title") }}</v-card-title>
+          <v-card-subtitle>{{ $t("TrackInfo.Tip") }}</v-card-subtitle>
           <v-card-text>
-            <div v-if="modelValue.cid === 'dev.jagk.apple_music.trackinfo'">
-            </div>
+            <v-checkbox :label="$t('TrackInfo.UI.ShowArtwork.Label')" v-model="modelValue.data.showArtwork">
+              <template v-slot:append>
+                <span class="opacity-50">
+                  {{ $t("TrackInfo.UI.ShowArtwork.Tip") }}
+                </span>
+              </template>
+            </v-checkbox>
           </v-card-text>
         </v-card>
       </v-col>
@@ -22,31 +28,10 @@ export default {
       required: true,
     },
   },
-  emits: ['update:modelValue'],
+  emits: ["update:modelValue"],
   data() {
-    return {
-    };
+    return {}
   },
-  methods: {
-    updateShowArtwork(value) {
-      this.modelValue.data.showArtwork = value ? 'true' : 'false';
-      this.$emit('update:modelValue', this.modelValue);
-    },
-    updateArtworkPosition(value) {
-      this.modelValue.data.artworkPosition = value;
-      this.$emit('update:modelValue', this.modelValue);
-    },
-    updateTextAlignment(value) {
-      this.modelValue.data.textAlignment = value;
-      this.$emit('update:modelValue', this.modelValue);
-    }
-  },
-  mounted() {
-    // Установка значений по умолчанию, если они не заданы
-
-    this.$fd.info("Hello from Apple Music Plugin");
-  }
-};
+  methods: {},
+}
 </script>
-
-<style scoped></style>

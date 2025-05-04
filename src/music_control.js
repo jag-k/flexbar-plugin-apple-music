@@ -1,43 +1,55 @@
-import fs from "fs/promises";
-import util from "util";
-import {exec} from "child_process";
-import {ARTWORK_PATH} from "./consts";
-import {logger} from "@eniac/flexdesigner";
-import {getCachedTrackInfo, updateTrackCache, isCacheValid, clearTrackCache, updatePositionInCache} from "./cache";
+import fs from "fs/promises"
+import { ARTWORK_PATH } from "./consts"
+import { logger } from "@eniac/flexdesigner"
+import { clearTrackCache, getCachedTrackInfo, isCacheValid, updatePositionInCache, updateTrackCache } from "./cache"
+import { runAppleScript } from "./utils"
 
-const execPromise = util.promisify(exec);
-
+/**
+ * Checks if Apple Music application is currently running
+ * @returns {Promise<boolean>} True if Apple Music is running, false otherwise
+ */
 async function isAppleMusicRunning() {
-    const checkRunningScript = `
+  const checkRunningScript = `
     tell application "System Events"
         set isRunning to (exists (processes where name is "Music"))
         return isRunning
-    end tell
-    `;
+    end tell`
 
-    try {
-        const {stdout: isRunningOutput} = await execPromise(`osascript -e '${checkRunningScript}'`);
-        const isRunning = isRunningOutput.trim() === "true";
-        logger.info("Apple Music is running:", isRunning);
-        return isRunning;
-    } catch (e) {
-        logger.error(e)
-        return false;
-    }
-
+  try {
+    const isRunning = (await runAppleScript(checkRunningScript)) === "true"
+    logger.info("Apple Music is running:", isRunning)
+    return isRunning
+  } catch (e) {
+    logger.error(e)
+    return false
+  }
 }
 
 /**
- * Получение ID текущего трека и информации о воспроизведении из Apple Music
+ * @typedef {Object} TrackIdInfo
+ * @property {string|null} trackId - Unique identifier for the track
+ * @property {number} position - Current playback position in seconds
+ * @property {number} duration - Total track duration in seconds
+ * @property {boolean} isPlaying - Whether the track is currently playing
+ */
+
+/**
+ * Retrieves the current track ID and playback information from Apple Music
+ * @returns {Promise<TrackIdInfo>} Basic information about the current track
  */
 async function getCurrentTrackId() {
-    const defaultResponse = {trackId: null, position: 0, duration: 0, isPlaying: false}
-    const isRunning = await isAppleMusicRunning();
-    if (!isRunning) {
-        return defaultResponse;
-    }
-    try {
-        const script = `
+  const defaultResponse = {
+    trackId: null,
+    position: 0,
+    duration: 0,
+    isPlaying: false,
+  }
+  const isRunning = await isAppleMusicRunning()
+  if (!isRunning) {
+    return defaultResponse
+  }
+  try {
+    const script = `
         tell application "Music"
             if player state is playing then
                 set currentTrack to current track
@@ -49,35 +61,41 @@ async function getCurrentTrackId() {
             else
                 return "no_track\n0\n0\nfalse"
             end if
-        end tell
-        `;
+        end tell`
 
-        const {stdout} = await execPromise(`osascript -e '${script}'`);
-        const [trackId, position, duration, isPlaying] = stdout.trim().split("\n");
-        return {
-            trackId,
-            position: parseFloat(position),
-            duration: parseFloat(duration),
-            isPlaying: isPlaying === "true"
-        };
-    } catch (error) {
-        logger.error("Ошибка при получении ID трека:", error);
-        return defaultResponse;
+    const [trackId, position, duration, isPlaying] = (await runAppleScript(script)).split("\n")
+    return {
+      trackId,
+      position: parseFloat(position),
+      duration: parseFloat(duration),
+      isPlaying: isPlaying === "true",
     }
+  } catch (error) {
+    logger.error("Error when receiving ID track:", error)
+    return defaultResponse
+  }
 }
 
 /**
- * Получение только информации о позиции воспроизведения (для обновления прогресса)
- * Легкий запрос, который не загружает обложку и другие данные
+ * @typedef {Object} PlaybackPosition
+ * @property {number} position - Current playback position in seconds
+ * @property {number} duration - Total track duration in seconds
+ * @property {boolean} isPlaying - Whether the track is currently playing
+ */
+
+/**
+ * Retrieves only playback position information (for updating progress)
+ * Lightweight request that doesn't fetch artwork or other detailed data
+ * @returns {Promise<PlaybackPosition>} Current playback position information
  */
 export async function getPlaybackPosition() {
-    const defaultResponse = {position: 0, duration: 0, isPlaying: false}
-    const isRunning = await isAppleMusicRunning();
-    if (!isRunning) {
-        return defaultResponse;
-    }
-    try {
-        const script = `
+  const defaultResponse = { position: 0, duration: 0, isPlaying: false }
+  const isRunning = await isAppleMusicRunning()
+  if (!isRunning) {
+    return defaultResponse
+  }
+  try {
+    const script = `
         tell application "Music"
             set isPlaying to (player state is playing)
             if isPlaying then
@@ -89,63 +107,74 @@ export async function getPlaybackPosition() {
                 return "0\n0\nfalse"
             end if
         end tell
-        `;
+        `
 
-        const {stdout} = await execPromise(`osascript -e '${script}'`);
-        const [position, duration, isPlaying] = stdout.trim().split("\n");
+    const [position, duration, isPlaying] = (await runAppleScript(script)).split("\n")
 
-        // Обновляем позицию в кеше
-        updatePositionInCache(parseFloat(position), isPlaying === "true");
+    // Update position in cache
+    updatePositionInCache(parseFloat(position), isPlaying === "true")
 
-        return {
-            position: parseFloat(position),
-            duration: parseFloat(duration),
-            isPlaying: isPlaying === "true"
-        };
-    } catch (error) {
-        logger.error("Ошибка при получении позиции воспроизведения:", error);
-        return defaultResponse;
+    return {
+      position: parseFloat(position),
+      duration: parseFloat(duration),
+      isPlaying: isPlaying === "true",
     }
+  } catch (error) {
+    logger.error("Error in obtaining a playback position:", error)
+    return defaultResponse
+  }
 }
 
 /**
- * Получение данных о текущем треке из Apple Music с использованием кеша
+ * @typedef {Object} TrackInfo
+ * @property {string} title - Title of the track
+ * @property {string} artist - Artist name
+ * @property {string} album - Album name
+ * @property {string} artwork - Base64 encoded artwork data URI or status message
+ * @property {number} position - Current playback position in seconds
+ * @property {number} duration - Total track duration in seconds
+ * @property {boolean} isPlaying - Whether the track is currently playing
+ */
+
+/**
+ * Retrieves current track data from Apple Music with cache support
+ * @returns {Promise<TrackInfo|null>} Complete track information or null if error occurs
  */
 export async function getTrackInfoWithAppleScript() {
-    try {
-        // Сначала получаем только ID трека и позицию воспроизведения
-        const {trackId, position, duration, isPlaying} = await getCurrentTrackId();
+  try {
+    // First, retrieve just the track ID and playback position
+    const { trackId, position, duration, isPlaying } = await getCurrentTrackId()
 
-        // Если трек не играет, возвращаем стандартную информацию
-        if (trackId === "no_track" || !isPlaying) {
-            return {
-                title: "No track is playing",
-                artist: "",
-                album: "",
-                artwork: "No artwork available",
-                position: 0,
-                duration: 0,
-                isPlaying: false
-            };
-        }
+    // If no track is playing, return standard information
+    if (trackId === "no_track" || !isPlaying) {
+      return {
+        title: "No track is playing",
+        artist: "",
+        album: "",
+        artwork: "No artwork available",
+        position: 0,
+        duration: 0,
+        isPlaying: false,
+      }
+    }
 
-        // Проверяем кеш - если ID трека не изменился и кеш валиден, используем его
-        // но обновляем позицию воспроизведения
-        const cachedInfo = getCachedTrackInfo();
-        if (trackId === cachedInfo.trackId && isCacheValid()) {
-            logger.info("Using cached track info for:", trackId);
-            return {
-                ...cachedInfo,
-                position: position,
-                duration: duration,
-                isPlaying: isPlaying
-            };
-        }
+    // Check the cache - if track ID hasn't changed and cache is still valid,
+    // use cached data but update the playback position
+    const cachedInfo = getCachedTrackInfo()
+    if (trackId === cachedInfo.trackId && isCacheValid()) {
+      logger.info("Using cached track info for:", trackId)
+      return {
+        ...cachedInfo,
+        position: position,
+        duration: duration,
+        isPlaying: isPlaying,
+      }
+    }
 
-        // Если кеш не валиден или ID изменился, получаем полную информацию о треке
-        logger.info("Fetching new track info for:", trackId);
+    // If cache is invalid or track ID has changed, fetch complete track information
+    logger.info("Fetching new track info for:", trackId)
 
-        const script = `
+    const script = `
         tell application "Music"
             if player state is playing then
                 set currentTrack to current track
@@ -166,92 +195,92 @@ export async function getTrackInfoWithAppleScript() {
                 return "No track is playing\n\n\nNo track"
             end if
         end tell
-        `;
+        `
 
-        const {stdout} = await execPromise(`osascript -e '${script}'`);
-        const [title, artist, album, status] = stdout.trim().split("\n");
+    const [title, artist, album, status] = (await runAppleScript(script)).split("\n")
 
-        let artworkBase64 = "";
-        if (status.includes("Artwork saved")) {
-            try {
-                const fileData = await fs.readFile(ARTWORK_PATH);
-                artworkBase64 = `data:image/jpeg;base64,${fileData.toString("base64")}`;
-                await fs.unlink(ARTWORK_PATH).catch((err) => {
-                    logger.error("Ошибка при удалении временного файла:", err);
-                });
-            } catch (fileError) {
-                logger.error("Ошибка при чтении файла обложки:", fileError);
-                artworkBase64 = "Error reading artwork file";
-            }
-        } else {
-            artworkBase64 = "No artwork available";
-        }
-
-        const trackInfo = {
-            title: title,
-            artist: artist,
-            album: album,
-            artwork: artworkBase64,
-            position: position,
-            duration: duration,
-            isPlaying: isPlaying
-        };
-
-        // Обновляем кеш
-        updateTrackCache(trackInfo, trackId);
-
-        return trackInfo;
-    } catch (error) {
-        logger.error("Ошибка при получении данных трека:", error);
-        return null;
+    let artworkBase64
+    if (status.includes("Artwork saved")) {
+      try {
+        const fileData = await fs.readFile(ARTWORK_PATH)
+        artworkBase64 = `data:image/jpeg;base64,${fileData.toString("base64")}`
+        await fs.unlink(ARTWORK_PATH).catch((err) => {
+          logger.error("Error deleting temporary file:", err)
+        })
+      } catch (fileError) {
+        logger.error("Error reading artwork file:", fileError)
+        artworkBase64 = "Error reading artwork file"
+      }
+    } else {
+      artworkBase64 = "No artwork available"
     }
+
+    const trackInfo = {
+      title: title,
+      artist: artist,
+      album: album,
+      artwork: artworkBase64,
+      position: position,
+      duration: duration,
+      isPlaying: isPlaying,
+    }
+
+    // Update cache
+    updateTrackCache(trackInfo, trackId)
+
+    return trackInfo
+  } catch (error) {
+    logger.error("Error getting track data:", error)
+    return null
+  }
+}
+
+import { safeExecute } from "./utils"
+
+/**
+ * Executes a simple Apple Music command and clears the track cache
+ * @param {string} command - The AppleScript command to execute
+ * @param {string} errorMessage - Error message to log if command fails
+ * @returns {Promise<boolean>} True if successful, false if error occurred
+ */
+async function executeAppleMusicCommand(command, errorMessage) {
+  return safeExecute(async () => {
+    await runAppleScript(command)
+    clearTrackCache()
+    return true
+  }, false, errorMessage)
 }
 
 /**
- * Элементы управления Apple Music
+ * Apple Music Control Play/Pause
+ * @returns {Promise<boolean>} True if command was successful, false otherwise
  */
 export async function togglePlayPause() {
-    try {
-        await execPromise('osascript -e \'tell application "Music" to playpause\'');
-        clearTrackCache();
-        return true;
-    } catch (error) {
-        logger.error("Ошибка при переключении воспроизведения:", error);
-        return false;
-    }
-}
-
-export async function nextTrack() {
-    try {
-        await execPromise('osascript -e \'tell application "Music" to next track\'');
-        clearTrackCache();
-        return true;
-    } catch (error) {
-        logger.error("Ошибка при переключении на следующий трек:", error);
-        return false;
-    }
-}
-
-export async function previousTrack() {
-    try {
-        await execPromise('osascript -e \'tell application "Music" to previous track\'');
-        clearTrackCache();
-        return true;
-    } catch (error) {
-        logger.error("Ошибка при переключении на предыдущий трек:", error);
-        return false;
-    }
+  return executeAppleMusicCommand(`tell application "Music" to playpause`, "Error toggling playback")
 }
 
 /**
- * Установка позиции воспроизведения
+ * Skips to the next track in Apple Music
+ * @returns {Promise<boolean>} True if command was successful, false otherwise
+ */
+export async function nextTrack() {
+  return executeAppleMusicCommand(`tell application "Music" to next track`, "Error switching to next track")
+}
+
+/**
+ * Returns to the previous track in Apple Music
+ * @returns {Promise<boolean>} True if command was successful, false otherwise
+ */
+export async function previousTrack() {
+  return executeAppleMusicCommand(`tell application "Music" to previous track`, "Error switching to previous track")
+}
+
+/**
+ * Sets the current playback position in Apple Music.
+ *
+ * @param {number} position The position in seconds to set the playback to
+ * @returns {Promise<boolean>} True if successful, false if there was an error
  */
 export async function setPlaybackPosition(position) {
-    try {
-        await execPromise(`osascript -e 'tell application "Music" to set player position to ${position}'`);
-        return true;
-    } catch (error) {
-        logger.error("Ошибка при установке позиции воспроизведения:", error);
-        return false;
-    }
+  return executeAppleMusicCommand(`tell application "Music" to set player position to ${position}`, "Error setting playback position")
 }

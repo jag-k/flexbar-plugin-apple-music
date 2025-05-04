@@ -1,4 +1,4 @@
-# AppleMusic
+# Apple Music for FlexBar
 
 Control Apple Music via FlexBar!
 
@@ -33,6 +33,6 @@ npm run dev
 
 ```
 npm run build
-npm run plugin:pack --path com.eniac.example.plugin
+npm run plugin:pack --path dev.jagk.apple_music.plugin
 ```
   

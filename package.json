@@ -14,15 +14,23 @@
   "type": "commonjs",
   "devDependencies": {
     "@rollup/plugin-commonjs": "^28.0.0",
+    "@rollup/plugin-json": "^6.1.0",
     "@rollup/plugin-node-resolve": "^15.2.2",
     "@rollup/plugin-terser": "^0.4.4",
     "@rollup/plugin-typescript": "^12.1.0",
-    "@rollup/plugin-json": "^6.1.0",
     "glob": "^11.0.1",
     "npm-run-all": "^4.1.5",
-    "rollup": "^4.0.2"
+    "prettier": "^3.5.3",
+    "rollup": "^4.0.2",
+    "vuetify": "^3.8.3"
   },
   "dependencies": {
     "@eniac/flexdesigner": "^1.0.1"
+  },
+  "prettier": {
+    "trailingComma": "es5",
+    "tabWidth": 2,
+    "semi": false,
+    "printWidth": 120
   }
 }
