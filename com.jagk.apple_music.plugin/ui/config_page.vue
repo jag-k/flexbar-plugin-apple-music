@@ -6,8 +6,8 @@
           <v-col cols="12">
             <v-slider
               v-model="modelValue.config.updateRate"
-              :max="60000"
-              :min="500"
+              :min="modelValue.config.minUpdateRate"
+              :max="modelValue.config.maxUpdateRate"
               :step="500"
               :label="$t('config.updateRate.name')"
               class="align-center"
@@ -57,10 +57,11 @@ export default {
   },
   methods: {
     saveConfig() {
+      const { minUpdateRate, maxUpdateRate } = this.modelValue.config
       const updateRate = parseInt(this.modelValue.config.updateRate)
       // Check if update rate is valid number
-      if (isNaN(updateRate) || updateRate < 1000 || updateRate > 60000) {
-        this.$fd.showSnackbarMessage("error", "Update rate must be between 1000 and 60000")
+      if (isNaN(updateRate) || updateRate < minUpdateRate || updateRate > maxUpdateRate) {
+        this.$fd.showSnackbarMessage("error", `Update rate must be between ${minUpdateRate} and ${maxUpdateRate} ms`)
         return
       }
       // Save as a number

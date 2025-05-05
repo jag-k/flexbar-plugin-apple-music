@@ -23,12 +23,6 @@ export const TMP_DIR = require("os").tmpdir()
 export const ARTWORK_PATH = path.join(TMP_DIR, "artwork_temp.bin")
 
 /**
- * Store key data for all keys managed by the plugin
- * @type {Object.<string, Object>}
- */
-export const keyData = {}
-
-/**
  * Store interval IDs for each key to avoid multiple intervals
  * @type {Object.<string, number>}
  */

@@ -9,8 +9,10 @@ import { updateIntervals } from "./consts"
  * @returns {void}
  */
 export function setManagedInterval(id, callback, delay) {
-  // Clear the existing interval if it exists
-  clearManagedInterval(id)
+  // Ignore already existing intervals
+  if (updateIntervals[id]) {
+    return
+  }
 
   // Create a wrapped callback that handles errors
   const wrappedCallback = async (...args) => {

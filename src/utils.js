@@ -1,6 +1,7 @@
 import util from "util"
 import { exec } from "child_process"
 import { logger } from "@eniac/flexdesigner"
+import { clearTrackCache } from "./cache"
 
 // noinspection JSValidateTypes
 /**
@@ -54,4 +55,20 @@ export function ifDeviceConnected(serialNumber, connectedDevices, fn) {
   }
 }
 
-// Interval management moved to interval-utils.js
+/**
+ * Executes a simple Apple Music command and clears the track cache
+ * @param {string} command - The AppleScript command to execute
+ * @param {string} errorMessage - Error message to log if command fails
+ * @returns {Promise<boolean>} True if successful, false if error occurred
+ */
+export async function executeAppleMusicCommand(command, errorMessage) {
+  return safeExecute(
+    async () => {
+      await runAppleScript(command)
+      clearTrackCache()
+      return true
+    },
+    false,
+    errorMessage
+  )
+}

@@ -1,15 +1,15 @@
 import { logger, plugin } from "@eniac/flexdesigner"
-import { connectedDevices, keyData, PLUGIN_UUID, updateIntervals } from "./consts"
+import { connectedDevices, PLUGIN_UUID, updateIntervals } from "./consts"
 import {
   getPlaybackPosition,
   getTrackInfoWithAppleScript,
   nextTrack,
   previousTrack,
   togglePlayPause,
-} from "./music_control"
+} from "./musicControl"
 import { getCachedTrackInfo } from "./cache"
 import { ifDeviceConnected } from "./utils"
-import { setManagedInterval, clearManagedInterval } from "./interval-utils"
+import { clearManagedInterval, setManagedInterval } from "./intervalUtils"
 
 /**
  * Formats time in MM:SS format
@@ -21,34 +21,6 @@ function formatTime(seconds) {
   const secs = Math.floor(seconds % 60)
   return `${mins}:${secs.toString().padStart(2, "0")}`
 }
-
-/**
- * @typedef {Object} KeyStyle
- * @property {string} [icon] - Key icon (either a Material Design icon name or a data URI)
- * @property {boolean} [showIcon] - Whether to show the icon
- * @property {boolean} [showTitle] - Whether to show the title
- * @property {boolean} [showProgress] - Whether to show progress bar
- * @property {number} [progress] - Progress value between 0 and 1
- * @property {string} [progressBarColor] - Color for the progress bar
- * @property {boolean} [foregroundOutline] - Whether to use foreground outline
- */
-
-/**
- * @typedef {Object} KeyData
- * @property {boolean} [showProgress] - Whether to show progress bar
- * @property {string} [progressBarColor] - Custom progress bar color
- * @property {boolean} [enableSmoothProgress] - Whether to enable smooth progress updates
- * @property {number} [progressUpdateInterval] - Custom interval for progress updates
- */
-
-/**
- * @typedef {Object} Key
- * @property {string} uid - Unique identifier for the key
- * @property {string} cid - Component identifier
- * @property {string} title - Key title text
- * @property {KeyStyle} style - Style properties for the key
- * @property {KeyData} data - Custom data for the key
- */
 
 /**
  * Safe drawing on the device with a connection check
@@ -94,7 +66,6 @@ async function updateTrackInfo(serialNumber, key) {
   // Create a copy of styles for modification
   let newStyle = { ...key.style }
   let newTitle = "No track info"
-  logger.debug("Track info:", key.data)
 
   if (!trackInfo) {
     logger.error("Failed to get track info")
@@ -106,19 +77,15 @@ async function updateTrackInfo(serialNumber, key) {
     if (trackInfo.title !== "No track is playing") {
       newStyle.showTitle = true
 
-      // Add information about playback time
-      // const currentTime = formatTime(trackInfo.position)
-      // const totalTime = formatTime(trackInfo.duration)
-
       // Set text with track and time information
       newTitle = `${trackInfo.title}\n${trackInfo.artist}`
 
       // Configure progress bar
-      if (key.data.showProgress !== false) {
-        newStyle.progress = trackInfo.duration > 0 ? trackInfo.position / trackInfo.duration : 0
-        newStyle.showProgress = true
-        newStyle.progressBarColor = key.data.progressBarColor || "#1ED760" // Green color by default
-      }
+      // if (key.data.showProgress !== false) {
+      //   newStyle.progress = trackInfo.duration > 0 ? trackInfo.position / trackInfo.duration : 0
+      //   newStyle.showProgress = true
+      //   newStyle.progressBarColor = key.data.progressBarColor || "#1ED760" // Green color by default
+      // }
 
       // Always show artwork if available
       if (trackInfo.artwork && trackInfo.artwork.startsWith("data:image")) {
@@ -145,6 +112,40 @@ async function updateTrackInfo(serialNumber, key) {
   key.title = newTitle
 
   safeDraw(serialNumber, key, "draw")
+}
+
+/**
+ * @param {string} serialNumber - Device serial number
+ * @param {Key} key - Key object to update
+ * @returns {Promise<ResponseStatus>}
+ */
+async function updatePlayPauseButton(serialNumber, key) {
+  if (!connectedDevices.has(serialNumber)) {
+    logger.warn(`Device ${serialNumber} not connected, skipping track info update`)
+    return { status: "error", message: "Device not connected" }
+  }
+
+  const trackInfo = await getTrackInfoWithAppleScript()
+  if (trackInfo) {
+    const { isPlaying, isRunning } = trackInfo
+
+    // If not running: 0 state
+    // If paused: 1 state
+    // If playing: 2 state
+    const state = isRunning ? (isPlaying ? 2 : 1) : 0
+    await plugin.set(serialNumber, key, { state })
+    return {
+      status: "success",
+    }
+  } else {
+    await plugin.set(serialNumber, key, {
+      state: 0,
+    })
+    return {
+      status: "error",
+      message: "Failed to get track info",
+    }
+  }
 }
 
 /**
@@ -201,206 +202,128 @@ function clearAllIntervals() {
   }
 }
 
-// Other event handlers...
-
 /**
- * @typedef {Object} PluginAlivePayload
- * @property {string} serialNumber - Device serial number
- * @property {Array<Key>} keys - Array of keys available on the device
+ * Retrieves the component identifier (CID) derived from a key object using its unique identifier (UID)
+ * and validates whether the provided serial number corresponds to a connected device.
+ *
+ * @param {Key} key - Key object to extract the CID from.
+ * @param {string} serialNumber - The serial number of the device to validate against connected devices.
+ * @return {string|undefined} The extracted CID if valid, or undefined if the key does not exist,
+ * the device is not connected, or the CID does not match the expected format.
  */
+function getCid(key, serialNumber) {
+  const keyUid = key.uid
+
+  if (!key || !keyUid || !key.cid) {
+    logger.warn(`Key with uid ${keyUid} not found in keyData for plugin.data event.`)
+    return
+  }
+  if (!connectedDevices.has(serialNumber)) {
+    logger.warn(`Device ${serialNumber} not connected, ignoring key press`)
+    return
+  }
+  if (!key.cid.startsWith(`${PLUGIN_UUID}.`)) {
+    return
+  }
+
+  return key.cid.slice(`${PLUGIN_UUID}.`.length)
+}
 
 /**
  * Called when a plugin key is loaded
  * @param {PluginAlivePayload} payload - Event payload with device information
+ * @returns {Promise<void>}
  */
-plugin.on("plugin.alive", async (payload) => {
-  logger.info("Plugin alive:", payload)
+plugin.on("plugin.alive", async ({ serialNumber, keys }) => {
   const { updateRate } = await plugin.getConfig()
 
-  connectedDevices.add(payload.serialNumber)
+  connectedDevices.add(serialNumber)
 
-  for (let key of payload.keys) {
+  for (let key of keys) {
     logger.info("Processing key:", key.cid)
     // Make sure key.data exists
     key.data = key.data || {}
-    keyData[key.uid] = key
+    const keyUid = key.uid
 
-    if (updateIntervals[key.uid]) {
-      clearInterval(updateIntervals[key.uid])
-      delete updateIntervals[key.uid]
+    if (updateIntervals[keyUid]) {
+      clearManagedInterval(keyUid)
     }
 
-    // Clear progress update interval if it exists
-    if (updateIntervals[`${key.uid}_progress`]) {
-      clearInterval(updateIntervals[`${key.uid}_progress`])
-      delete updateIntervals[`${key.uid}_progress`]
+    const cid = getCid(key, serialNumber)
+    if (!cid) {
+      continue
     }
 
-    switch (key.cid) {
-      case `${PLUGIN_UUID}.trackinfo`:
+    switch (cid) {
+      case "trackInfo": {
         logger.info("Setting up Track Info key")
-        const config = await plugin.getConfig()
-        logger.debug("Config:", config)
-
-        key.style = key.style || {}
-        key.style.showTitle = true
-        key.style.foregroundOutline = false
-        key.title = "Nothing playing"
-
-        key.style.icon = "mdi mdi-music"
-        key.style.showIcon = true
-
-        safeDraw(payload.serialNumber, key, "draw")
 
         // Full track information update
         logger.debug(`Setting up progress update interval every ${updateRate} ms`)
-        await updateTrackInfo(payload.serialNumber, key)
+        await updateTrackInfo(serialNumber, key)
         setManagedInterval(
           key.uid,
           async () => {
-            if (keyData[key.uid]) {
-              await updateTrackInfo(payload.serialNumber, keyData[key.uid])
-            } else {
-              logger.warn(`Key with uid ${key.uid} not found in keyData for interval update.`)
-              clearManagedInterval(key.uid)
-            }
+            await updateTrackInfo(serialNumber, key)
           },
           updateRate
         )
-
-        // Update-only progress
-        updateIntervals[`${key.uid}_progress`] = setInterval(async () => {
-          if (keyData[key.uid]) {
-            await updateProgressOnly(payload.serialNumber, keyData[key.uid])
-          } else {
-            logger.warn(`Key with uid ${key.uid} not found in keyData for progress update.`)
-            clearInterval(updateIntervals[`${key.uid}_progress`])
-            delete updateIntervals[`${key.uid}_progress`]
-          }
-        }, 1000) // Update progresses every second
         break
+      }
+      case "playPause": {
+        logger.info("Setting up Play/Pause key")
+        await updatePlayPauseButton(serialNumber, key)
+        setManagedInterval(
+          keyUid,
+          async () => {
+            await updatePlayPauseButton(serialNumber, key)
+          },
+          updateRate
+        )
+        break
+      }
     }
   }
 })
-
-/**
- * @typedef {Object} KeyPressData
- * @property {Key} key - The key that was pressed
- */
-
-/**
- * @typedef {Object} PluginDataPayload
- * @property {string} serialNumber - Device serial number
- * @property {KeyPressData} data - Data about the key press
- */
 
 /**
  * Called when user interacts with a key
  * @param {PluginDataPayload} payload - Event payload with key press information
+ * @returns {Promise<ResponseStatus | void>}
  */
-plugin.on("plugin.data", async (payload) => {
-  logger.info("Received plugin.data:", payload)
-  const data = payload.data
+plugin.on("plugin.data", async ({ data, serialNumber }) => {
   // Get the current key object from keyData
-  const key = keyData[data.key.uid]
-  const { updateRate } = await plugin.getConfig()
-  console.log(data)
+  const { key } = data
+  const cid = getCid(key, serialNumber)
 
-  if (!key) {
-    logger.warn(`Key with uid ${data.key.uid} not found in keyData for plugin.data event.`)
-    return
-  }
-
-  if (!connectedDevices.has(payload.serialNumber)) {
-    logger.warn(`Device ${payload.serialNumber} not connected, ignoring key press`)
-    return
-  }
-  const config = await plugin.getConfig()
-  logger.debug("Config:", config)
-  if (key.cid === `${PLUGIN_UUID}.trackinfo`) {
-    logger.info("Track Info key pressed")
-    await togglePlayPause()
-    // Update information immediately after action
-    await updateTrackInfo(payload.serialNumber, key)
-    // Main interval for updating all track information
-    updateIntervals[key.uid] = setInterval(async () => {
-      if (keyData[key.uid]) {
-        await updateTrackInfo(payload.serialNumber, keyData[key.uid])
-      } else {
-        logger.warn(`Key with uid ${key.uid} not found in keyData for interval update.`)
-        clearInterval(updateIntervals[key.uid])
-        delete updateIntervals[key.uid]
-      }
-    }, updateRate)
-
-    // Additional interval for more frequent position-only updates
-    if (key.data.enableSmoothProgress !== false) {
-      const progressUpdateInterval = key.data.progressUpdateInterval || 1000 // 1 second by default
-      updateIntervals[`${key.uid}_progress`] = setInterval(async () => {
-        if (keyData[key.uid]) {
-          const { position, duration, isPlaying } = await getPlaybackPosition()
-          if (isPlaying) {
-            // Update only progress without redrawing all information
-            keyData[key.uid].style.progress = duration > 0 ? position / duration : 0
-
-            // Format time
-            const formatTime = (seconds) => {
-              const mins = Math.floor(seconds / 60)
-              const secs = Math.floor(seconds % 60)
-              return `${mins}:${secs.toString().padStart(2, "0")}`
-            }
-
-            // Update only time in the title
-            const currentTitle = keyData[key.uid].title
-            const titleParts = currentTitle.split("\n")
-            if (titleParts.length >= 3) {
-              titleParts[2] = `${formatTime(position)} / ${formatTime(duration)}`
-              keyData[key.uid].title = titleParts.join("\n")
-            }
-
-            safeDraw(payload.serialNumber, keyData[key.uid], "draw")
-          }
-        } else {
-          clearInterval(updateIntervals[`${key.uid}_progress`])
-          delete updateIntervals[`${key.uid}_progress`]
-        }
-      }, progressUpdateInterval)
+  switch (cid) {
+    case "trackInfo": {
+      logger.info("Track Info key pressed")
+      await togglePlayPause()
+      await updateTrackInfo(serialNumber, key)
+      return
     }
-  } else if (
-    key.cid === `${PLUGIN_UUID}.playpause` ||
-    key.cid === `${PLUGIN_UUID}.next` ||
-    key.cid === `${PLUGIN_UUID}.previous`
-  ) {
-    // Execute the appropriate command based on a key pressed
-    if (key.cid === `${PLUGIN_UUID}.playpause`) {
+    case "playPause": {
       logger.info("Play/Pause key pressed")
       await togglePlayPause()
-    } else if (key.cid === `${PLUGIN_UUID}.next`) {
+      return await updatePlayPauseButton(serialNumber, key)
+    }
+    case "next": {
       logger.info("Next Track key pressed")
       await nextTrack()
-    } else {
+      return
+    }
+    case "previous": {
       logger.info("Previous Track key pressed")
       await previousTrack()
+      return
     }
-
-    // Find and update the Track Info key
-    await updateTrackInfoKey(payload.serialNumber)
+    default: {
+      logger.warn(`Unknown CID: ${cid}`)
+      return
+    }
   }
 })
-
-/**
- * Finds the Track Info key and updates it
- * @param {string} serialNumber - Device serial number
- * @returns {Promise<void>}
- */
-async function updateTrackInfoKey(serialNumber) {
-  for (const uid in keyData) {
-    if (keyData[uid].cid === `${PLUGIN_UUID}.trackinfo`) {
-      await updateTrackInfo(serialNumber, keyData[uid])
-      break
-    }
-  }
-}
 
 /**
  * Called when plugin is stopped
@@ -420,16 +343,6 @@ plugin.on("plugin.unload", () => {
   logger.info("Plugin unloading, clearing intervals")
   clearAllIntervals()
   connectedDevices.clear()
-})
-
-plugin.on("ui.message", async (payload) => {
-  logger.debug("Received message from UI:", payload)
-  if (payload.data === "test") {
-    await testAPIs()
-    return "Done!"
-  } else {
-    return "Hello from plugin backend!"
-  }
 })
 
 // Connect to the FlexDesigner and start the plugin
