@@ -9,7 +9,7 @@ import {
 } from "./musicControl"
 import { getCachedTrackInfo } from "./cache"
 import { ifDeviceConnected } from "./utils"
-import { clearManagedInterval, setManagedInterval } from "./intervalUtils"
+import { clearKeyIntervals, clearManagedInterval, setManagedInterval } from "./intervalUtils"
 
 /**
  * Formats time in MM:SS format
@@ -283,6 +283,18 @@ plugin.on("plugin.alive", async ({ serialNumber, keys }) => {
         break
       }
     }
+  }
+})
+
+/**
+ * Called when plugin keys leave the device page (page change, drawer closed, device disconnected).
+ * Stops their update intervals: drawing a key that is not alive is rejected by the host.
+ * @param {PluginAlivePayload} payload - Event payload with the keys that are no longer alive
+ * @returns {void}
+ */
+plugin.on("plugin.dead", ({ keys }) => {
+  for (const key of keys || []) {
+    clearKeyIntervals(key.uid)
   }
 })
 
